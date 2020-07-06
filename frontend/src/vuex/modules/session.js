@@ -7,12 +7,12 @@ function isWindowsPlatform() {
 
 const mockSessionState = {
   // signedIn: true,
-  // address: "cosmos1r5fknqx36n8vts9wlqufw08u3fh3qklhfwvhg5",
+  // address: "one1r5fknqx36n8vts9wlqufw08u3fh3qklhfwvhg5",
   // sessionType: "extension"
 }
 
 export default () => {
-  const USER_PREFERENCES_KEY = `lunie_user_preferences`
+  const USER_PREFERENCES_KEY = `harmony_user_preferences`
 
   const state = {
     developmentMode: config.development, // can't be set in browser
@@ -21,6 +21,7 @@ export default () => {
     signedIn: false,
     sessionType: null, // local, explore, ledger, extension
     pauseHistory: false,
+    extensionVersion: 0,
     history: [],
     address: null, // Current address
     addresses: [], // Array of previously used addresses
@@ -88,6 +89,15 @@ export default () => {
     },
     setModalId(state, modalId) {
       state.modalId = modalId
+    },
+    setExtensionInfo(state, { extensionId, extensionVersion }) {
+      state.extensionId = extensionId
+
+      if (extensionVersion) {
+        state.extensionVersion = Number(
+          extensionVersion.split(".").slice(-1)[0]
+        )
+      }
     }
   }
 
@@ -166,30 +176,24 @@ export default () => {
     loadLocalPreferences({ state, dispatch }) {
       const localPreferences = localStorage.getItem(USER_PREFERENCES_KEY)
 
-      // don't track in development
-      if (state.developmentMode) return
+      if (localPreferences) {
+        const { cookiesAccepted } = JSON.parse(localPreferences)
 
-      if (!localPreferences) {
-        state.cookiesAccepted = false
-        return
+        state.cookiesAccepted = Boolean(cookiesAccepted)
       }
-      state.cookiesAccepted = true
 
-      const { errorCollection, analyticsCollection } = JSON.parse(
-        localPreferences
-      )
-      if (state.errorCollection !== errorCollection)
-        dispatch(`setErrorCollection`, errorCollection)
-      if (state.analyticsCollection !== analyticsCollection)
-        dispatch(`setAnalyticsCollection`, analyticsCollection)
+      // if (state.errorCollection !== errorCollection)
+      //   dispatch(`setErrorCollection`, errorCollection)
+      // if (state.analyticsCollection !== analyticsCollection)
+      //   dispatch(`setAnalyticsCollection`, analyticsCollection)
     },
     storeLocalPreferences({ state }) {
       state.cookiesAccepted = true
+
       localStorage.setItem(
         USER_PREFERENCES_KEY,
         JSON.stringify({
-          errorCollection: state.errorCollection,
-          analyticsCollection: state.analyticsCollection
+          cookiesAccepted: true
         })
       )
     },

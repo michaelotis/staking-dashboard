@@ -1,13 +1,13 @@
 <template>
-  <div>
-    <div class="chart-container-stake-allocate">
+  <div class="next-epoch">
+    <div class="chart-container-next-epoch">
       <ChartPie
         :chartdata="chartdata"
         :options="options"
-        style="height: 200px; width: 100%; margin: auto"
+        style="height: 48px; width: 48px; margin: auto"
       />
     </div>
-    <div class="legend">{{ timeNextEpoch / 60 | timeLeft }}</div>
+    <div class="legend">next epoch:<br/>{{chartdata.legend}}</div>
   </div>
 </template>
 
@@ -27,7 +27,7 @@ export default {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutoutPercentage: 92,
+      cutoutPercentage: 60,
       plugins: {
         labels: {
           render: () => ""
@@ -44,19 +44,19 @@ export default {
   }),
   computed: {
     chartdata() {
-      let diff = isNaN(this.timeNextEpoch) ? 0 : 36 - this.timeNextEpoch / 3600
+      let diff = isNaN(this.timeNextEpoch) ? 0 : Math.ceil(this.timeNextEpoch / 60)
+      const dataDiff = 12 - (diff / 5 * 12)
 
-      diff = diff < 0 ? 0 : diff
-
+      const data = [...new Array(12)].map((v, i) => 1)
       return {
+        legend: `${diff} minute${ diff > 1 ? 's' : '' }`,
+        diff,
         datasets: [
           {
-            data: [...Array(12)].map(() => 1),
-            backgroundColor: [...Array(12)].map((v, i) =>
-              i < Math.floor(diff / 3)
-                ? chartColors[0] + "99"
-                : chartColors[0] + "20"
-            )
+            data,
+            backgroundColor: data.map((d, i) => {
+              return i < dataDiff ? '#00ADE844' : '#00ADE888'
+            })
           }
         ]
       }
@@ -65,16 +65,30 @@ export default {
 }
 </script>
 
-<style>
-.chart-container-stake-allocate {
-  margin: var(--unit) auto;
-  position: relative;
+<style scoped>
+
+.next-epoch {
+  display: flex;
+  width: 164px;
+  align-items: center;
 }
+@media screen and (max-width: 414px) {
+  
+  .next-epoch {
+    width: 190px;
+  }
+}
+
 .legend {
-  margin-top: -100px;
-  padding-bottom: 100px;
-  width: 100%;
-  text-align: center;
+  flex: 0 0 96px;
+  line-height: 1rem;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--blue);
+}
+
+.chart-container-next-epoch {
+  margin-top: -10px;
 }
 
 </style>

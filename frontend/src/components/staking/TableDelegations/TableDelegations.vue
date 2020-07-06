@@ -1,44 +1,37 @@
 <template>
-  <div>
-    <table class="data-table card-white">
-      <thead>
-        <PanelSort
-          :sort="sort"
-          :properties="properties"
-          :show-on-mobile="showOnMobile"
-        />
-      </thead>
-      <tbody
-        is="transition-group"
-        v-infinite-scroll="loadMore"
-        infinite-scroll-distance="400"
-        name="flip-list"
-      >
-        <TableRow
-          v-for="(row, index) in showingValidators"
-          v-if="row.stake > 0"
-          :key="row.operator_address"
-          :index="index"
-          :data="row"
-          :is-undelegation="isUndelegation"
-          :show-on-mobile="showOnMobile"
-        />
-      </tbody>
-    </table>
+  <div class="table-delegations">
+    <BaseGrid
+      :sort="sort"
+      :columns="columns"
+      :data="showingValidators"
+      :on-row-click="onClickValidator"
+    />
   </div>
 </template>
 
 <script>
 import { mapGetters, mapState } from "vuex"
 import orderBy from "lodash.orderby"
-import PanelSort from "staking/PanelSort"
-import TableRow from "./TableRow"
+import tooltips from "src/components/tooltips"
+
+import {
+  percent,
+  shortDecimals,
+  atoms,
+  ones,
+  zeroDecimals,
+  fourDecimals,
+  twoDecimals
+} from "scripts/num"
+
+import BaseGrid from "src/components/ui/BaseGrid"
+import ValidatorStatus from "../components/ValidatorStatus"
+import ValidatorName from "../components/ValidatorName"
 
 export default {
   name: `table-delegations`,
   components: {
-    TableRow,
-    PanelSort
+    BaseGrid
   },
   props: {
     data: {
@@ -60,7 +53,6 @@ export default {
       property: `stake`,
       order: `desc`
     },
-    showing: 15,
     rollingWindow: 10000 // param of slashing period
   }),
   computed: {
@@ -77,59 +69,82 @@ export default {
       )
     },
     showingValidators() {
-      return this.sortedEnrichedValidators.slice(0, this.showing)
+      return this.sortedEnrichedValidators
     },
-    properties() {
+    columns() {
+      let columns = [
+        {
+          title: `Status`,
+          value: `status`,
+          tooltip: tooltips.portfolio.status,
+          width: "110px",
+          renderComponent: ValidatorStatus // render as Component - use custom Vue components
+        },
+        {
+          title: `Name`,
+          value: `name`,
+          key: item => item.address,
+          tooltip: tooltips.portfolio.name,
+          renderComponent: ValidatorName // render as Component - use custom Vue components
+        },
+        {
+          title: `Stake`,
+          value: `stake`,
+          tooltip: `Stake of validator`,
+          width: "150px",
+          align: "right",
+          render: value => zeroDecimals(ones(value)) + " ONE"
+        }
+      ]
+
       if (this.isUndelegation) {
-        return [
+        columns = columns.concat([
           {
-            title: `Name`,
-            value: `name`,
-            tooltip: `The validator's moniker`
-          },
-          {
-            title: `Stake`,
-            value: `stake`,
-            tooltip: `Stake`
-          },
-          {
-            title: `Ending in`,
+            title: `Returned in`,
             value: `remaining_epoch`,
-            tooltip: `Ending in`
+            tooltip: tooltips.portfolio.ending_in,
+            width: "190px",
+            align: "right",
+            render: value => {
+              if (value) {
+                return `${value} epoch${value > 1 ? "s" : ""}`
+              } else {
+                return "end of current epoch"
+              }
+            }
           }
-        ]
+        ])
       } else {
-        return [
+        columns = columns.concat([
           {
-            title: `Name`,
-            value: `name`,
-            tooltip: `The validator's moniker`
-          },
-          {
-            title: `Stake`,
-            value: `stake`,
-            tooltip: `Stake`
-          },
-          {
-            title: `Reward (up to date)`,
+            title: `Reward (to date)`,
             value: `rewards`,
-            tooltip: `Reward (up to date)`
+            tooltip: tooltips.portfolio.reward_up_to_date,
+            width: "200px",
+            align: "right",
+            render: value => zeroDecimals(ones(value)) + " ONE"
           },
           {
-            title: `APR %`,
+            title: `Expected Return`,
             value: `apr`,
-            tooltip: `APR %`
+            tooltip: tooltips.portfolio.apr_avg,
+            width: "200px",
+            align: "right",
+            render: value => percent(value)
           }
-        ]
+        ])
       }
-    }
-  },
-  watch: {
-    "sort.property": function() {
-      this.showing = 15
-    },
-    "sort.order": function() {
-      this.showing = 15
+
+      if (this.$mq === "tab") {
+        const keep = ["name", "apr", "stake", "remaining_epoch", "apr"]
+        columns = columns.filter(p => keep.includes(p.value))
+      }
+      if (this.$mq === "sm" || this.$mq === "md") {
+        const keep = ["name", "remaining_epoch", "apr", "stake"]
+        columns = columns.filter(p => keep.includes(p.value))
+      }
+
+      return columns
     }
   },
   mounted() {
@@ -138,24 +153,21 @@ export default {
     this.$store.dispatch(`getMintingParameters`)
   },
   methods: {
-    loadMore() {
-      this.showing += 10
+    onClickValidator(validator) {
+      this.$router.push({
+        name: "validator",
+        params: { validator: validator.operator_address }
+      })
     }
   }
 }
 </script>
-<style scoped>
-@media screen and (max-width: 550px) {
-  .data-table td {
-    overflow: hidden;
-  }
-
-  .data-table__row__info {
-    max-width: 22rem;
+<style lang="scss">
+.table-delegations {
+  .table-headings-wrap {
+    width: 100%;
   }
 }
-
-.flip-list-move {
-  transition: transform 0.3s;
+@media screen and (max-width: 414px) {
 }
 </style>

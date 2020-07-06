@@ -1,11 +1,11 @@
 import config from "src/config"
 import { getSigner } from "./signer"
 import { uatoms } from "@/scripts/num"
-import { mockTransfer } from "../../mock-service"
 import { waitTransactionConfirm } from "src/scripts/extension-utils"
 
 import {
   MsgDelegate,
+  MsgMultiDelegate,
   MsgSend,
   MsgUndelegate,
   MsgWithdrawDelegationReward
@@ -14,6 +14,7 @@ import { INetworkConfig } from "@/vuex/modules/connection"
 
 type TMessage =
   | "MsgDelegate"
+  | "MsgMultiDelegate"
   | "MsgSend"
   | "MsgUndelegate"
   | "MsgWithdrawDelegationReward"
@@ -63,6 +64,12 @@ export default class ActionManager {
         this.message = MsgSend(this.context.userAddress, transactionProperties)
         break
 
+      case "MsgMultiDelegate":
+        this.message = MsgMultiDelegate(
+          this.context.userAddress,
+          transactionProperties
+        )
+        break
       case "MsgDelegate":
         this.message = MsgDelegate(
           this.context.userAddress,
@@ -86,23 +93,23 @@ export default class ActionManager {
     }
   }
 
-  async simulate(memo: any) {
-    const rez = await mockTransfer(memo)
-
-    return rez.gas_estimate
+  async simulate() {
+    if (this.messageType === "MsgSend") {
+      return "21000"
+    } else {
+      return "25000"
+    }
   }
 
   async send(memo: any, txMetaData: any, networkConfig: INetworkConfig) {
     this.readyCheck()
 
-    const { gasEstimate, gasPrice, submitType, password } = txMetaData
+    const { gasEstimate, gasPrice, submitType } = txMetaData
     const signer: any = await getSigner(config, submitType, {
-      address: this.context.userAddress,
-      password
+      address: this.context.userAddress
     })
 
     try {
-
       const fullMessage = {
         msgs: [this.message],
         fee: {
@@ -112,11 +119,11 @@ export default class ActionManager {
         network: networkConfig
       }
 
-      await signer(JSON.stringify(fullMessage))
+      const { txHash } = await signer(JSON.stringify(fullMessage))
 
       const included = waitTransactionConfirm
 
-      return { included, hash: "" }
+      return { included, hash: txHash }
     } catch (err) {
       console.log("[ActionManager] send error", err)
     }

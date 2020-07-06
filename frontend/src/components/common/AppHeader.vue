@@ -1,6 +1,7 @@
 <template>
 
   <div class="container">
+
     <div class="mobile-menu-button">
       <div v-if="open" class="close-menu" @click="close()">
         <i class="material-icons mobile-menu-action">close</i>
@@ -24,14 +25,6 @@
             alt="Harmony Staking spaceship accelerating into a colourful space sky"
           />
         </a>
-        <!-- <template v-if="!desktop">
-          <div v-if="open" class="close-menu" @click="close()">
-            <i class="material-icons mobile-menu-action">close</i>
-          </div>
-          <div v-if="!open" class="open-menu" @click="show()">
-            <i class="material-icons mobile-menu-action">more_vert</i>
-          </div>
-        </template> -->
       </div>
       <AppMenu @close="close" />
     </div>
@@ -59,7 +52,9 @@ import noScroll from "no-scroll"
 import AppMenu from "common/AppMenu"
 export default {
   name: `app-header`,
-  components: { AppMenu },
+  components: {
+    AppMenu,
+  },
   data: () => ({
     open: false,
     desktop: false
@@ -90,6 +85,7 @@ export default {
         window.innerWidth || 0
       )
 
+
       if (w >= 1024) {
         this.close()
         this.desktop = true
@@ -106,23 +102,24 @@ export default {
 
 .container {
     background: white;
+    height: 100vh;
+    overflow: hidden;
 }
 .app-header {
   position: relative;
   .container-mobile, .container-desktop {
     width: var(--width-side);
-    min-height: 100vh;
     background: white;
   }
   .container-mobile {
     display: none;
+    border-right: 1px solid var(--light);
   }
 }
 
 .app-mobile-menu-drop {
   opacity: 0;
   width: 0;
-  height: 100vh;
   background: black;
   transition: opacity 0.32s ease-out;
   position: fixed;
@@ -164,8 +161,8 @@ export default {
   height: 48px;
 }
 
-@media screen and (max-width: 411px) {
-  
+@media screen and (max-width: 768px) {
+
   .app-header {
     position: fixed;
     top: 0;
@@ -188,6 +185,7 @@ export default {
   }
   .app-mobile-menu-drop.open {
     width: 100vw;
+    height: 100vh;
     opacity: 0.5;
   }
 

@@ -1,6 +1,5 @@
 <template>
   <menu class="app-menu">
-
     <div v-if="session.signedIn" class="user-box">
       <div>
         <h3>Your Address</h3>
@@ -31,6 +30,11 @@
         title="Portfolio"
         @click.native="close"
       >
+        <svgicon
+          name="profile"
+          width="20"
+          height="20"
+        ></svgicon>
         <h2 class="app-menu-title">Portfolio</h2>
         <i class="material-icons">chevron_right</i>
       </router-link>
@@ -41,17 +45,27 @@
         title="Validators"
         @click.native="close"
       >
+        <svgicon
+          name="validators"
+          width="20"
+          height="20"
+        ></svgicon>
         <h2 class="app-menu-title">Validators</h2>
         <i class="material-icons">chevron_right</i>
       </router-link>
       <router-link
         id="menu_item_global"
         class="app-menu-item"
-        to="/global"
-        title="Global View"
+        to="/analytics"
+        title="Analytics"
         @click.native="close"
       >
-        <h2 class="app-menu-title">Global View</h2>
+        <svgicon
+          name="world"
+          width="20"
+          height="20"
+        ></svgicon>
+        <h2 class="app-menu-title">Analytics</h2>
         <i class="material-icons">chevron_right</i>
       </router-link>
 
@@ -86,6 +100,11 @@
         title="Networks"
         @click.native="close"
       >
+        <svgicon
+          name="network"
+          width="20"
+          height="20"
+        ></svgicon>
         <h2 class="app-menu-title">Networks</h2>
         <i class="material-icons">chevron_right</i>
       </router-link>
@@ -120,6 +139,17 @@
         <h2 class="app-menu-title">Security</h2>
       </router-link>-->
 
+
+      <a
+        class="app-menu-item small"
+        href="https://docs.harmony.one/home/validators"
+        @click="close"
+        target="_blank"
+      >
+        <h2 class="app-menu-title">Become a Validator</h2>
+      </a>
+      
+
       <router-link
         class="app-menu-item small"
         to="/terms"
@@ -140,8 +170,21 @@
         <h2 class="app-menu-title">Privacy Policy</h2>
       </router-link>
 
+<!-- 
       <router-link
-        v-if="session.signedIn" 
+        class="app-menu-item small"
+        to="#"
+        exact="exact"
+        title="Terms"
+        @click.native="feedback"
+      >
+        <h2 class="app-menu-title">Feedback</h2>
+      </router-link> -->
+
+
+
+      <router-link
+        v-if="session.signedIn"
         to="#"
         class="app-menu-item small"
         exact="exact"
@@ -161,12 +204,7 @@
       >
         <h2 class="app-menu-title">Sign In</h2>
       </router-link>
-
-
     </div>
-
-
-
 
     <ConnectedNetwork />
   </menu>
@@ -196,11 +234,20 @@ export default {
     ...mapGetters([`liquidAtoms`, `totalAtoms`, `bondDenom`])
   },
   methods: {
+    feedback() {
+      console.log('feedback')
+    },
     close() {
       this.$emit(`close`)
       noScroll.off()
     },
     signOut() {
+      if (this.session.sessionType === "mathwallet" && window.harmony) {
+        window.harmony
+          .forgetIdentity()
+          .then(() => {})
+          .catch(err => {})
+      }
       this.$emit(`close`)
       this.$store.dispatch(`signOut`)
     },
@@ -213,12 +260,12 @@ export default {
 </script>
 
 <style scoped>
-
-.app-menu-main {
+/* .app-menu-main {
   border-top: 1px solid var(--light);
-}
+} */
 
-.sign-out, .session-link {
+.sign-out,
+.session-link {
   margin: var(--unit) 0;
   padding-left: var(--unit);
   font-size: 14px;
@@ -237,17 +284,17 @@ export default {
   font-size: 20px;
 }
 
-
 .user-box {
   margin: var(--unit) 0;
   padding-left: 20px;
+  padding-bottom: 12px;
   font-size: 14px;
   color: var(--gray);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-bottom: 1px solid var(--light);
 }
-
 
 .app-menu {
   position: relative;
@@ -280,14 +327,16 @@ export default {
 
 .app-menu-item h2 {
   flex: 1;
+  margin-left: 5px;
   display: inline-block;
 }
 .app-menu-item i {
   padding-right: var(--half);
   align-self: flex-end;
 }
-.app-menu-item:hover, .app-menu-item.router-link-active {
-  color: var(--link);
+.app-menu-item:hover,
+.app-menu-item.router-link-active {
+  color: var(--blue);
   border-left: 4px solid var(--blue);
 }
 
@@ -295,11 +344,17 @@ export default {
   color: var(--blue);
 }
 
-@media screen and (max-width: 1023px) {
+.app-menu-item:hover > .svg-icon {
+  fill: var(--blue);
+}
 
+.router-link-active > .svg-icon {
+  fill: var(--blue);
+}
+
+@media screen and (max-width: 1023px) {
 }
 
 @media screen and (min-width: 1023px) {
-
 }
 </style>

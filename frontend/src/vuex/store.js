@@ -13,6 +13,8 @@ import modules from "./modules"
 
 Vue.use(Vuex)
 
+const getLegerModule = () => import("./modules/ledger")
+let isLegerModuleRegistered = false
 
 /**
  * Module Store
@@ -25,7 +27,17 @@ export default (opts = {}) => {
     // strict: true,
     modules: modules(opts),
     actions: {
-      loadPersistedState
+      loadPersistedState,
+      loadLegerModule: () => {
+        if (!isLegerModuleRegistered) {
+          return getLegerModule().then(legerModule => {
+            store.registerModule("ledger", legerModule.default())
+            isLegerModuleRegistered = true
+          })
+        } else {
+          return Promise.resolve()
+        }
+      }
     },
     plugins: [createLogger()]
   })
@@ -39,9 +51,10 @@ export default (opts = {}) => {
   store.subscribe(mutation => {
     if (mutation.type === "setConnected") {
       store.dispatch("queryWalletBalances")
+      store.dispatch(`resetSelectedValidators`)
 
       Promise.all([
-        store.dispatch("getDelegates"),
+        store.dispatch("getDelegates")
         // store.dispatch("getValidators")
       ]).then(() => store.dispatch("getRewardsFromMyValidators"))
     }
@@ -54,6 +67,17 @@ export default (opts = {}) => {
       store
         .dispatch("getDelegates")
         .then(() => store.dispatch("getRewardsFromMyValidators"))
+    }
+  })
+
+  store.subscribe(mutation => {
+    if (mutation.type === "setSessionType") {
+      if (mutation.payload === "leger" && !isLegerModuleRegistered) {
+        getLegerModule().then(legerModule => {
+          store.registerModule("ledger", legerModule.default())
+          isLegerModuleRegistered = true
+        })
+      }
     }
   })
 

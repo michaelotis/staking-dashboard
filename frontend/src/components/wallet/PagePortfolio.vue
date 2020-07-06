@@ -13,30 +13,29 @@
           <LightWidget title="Summary" class="balance">
             <TmBalance />
           </LightWidget>
-          <LightWidget title="Stake allocation" class="delegations">
-            <div v-if="delegation.loading" class="delegation-body">
-              Loading...
-            </div>
-            <div v-else-if="!delegations.length" class="delegation-body">
-              No delegations in your portfolio
-            </div>
+          <LightWidget
+            :tooltip="tooltips.portfolio.portfolio_allocation"
+            title="Portfolio allocation"
+            class="delegations"
+          >
+            <div v-if="delegation.loading" class="delegation-body">Loading...</div>
+            <div
+              v-else-if="
+                !delegations.length &&
+                  !Object.keys(delegation.unbondingDelegations).length
+              "
+              class="delegation-body"
+            >No delegations in your portfolio</div>
             <StakeAllocationBlock v-else :delegations="delegations" class="delegation-body" />
           </LightWidget>
-          <LightWidget
-            v-if="isNetworkInfoLoading"
-            title="Time until next epoch"
-            class="time_next_epoch"
-          >
-            <TimePieBlock :time-next-epoch="networkInfo.time_next_epoch" class="time-body" />
-          </LightWidget>
         </div>
-        <DelegationsOverview />
-        <template v-if="Object.keys(delegation.unbondingDelegations).length">
+        <DelegationsOverview :undelegations="undelegations" />
+        <!-- <template v-if="undelegations.length">
           <h3 class="tab-header">
             Pending Undelegations
           </h3>
           <Undelegations />
-        </template>
+        </template>-->
       </template>
     </TmPage>
   </div>
@@ -70,8 +69,12 @@
     }
   }
 
+  .delegation-body {
+    padding: 0 var(--unit);
+    text-align: left;
+  }
 
-  .delegation-body, .time-body {
+  .time-body {
     padding: 0 var(--unit);
     text-align: center;
   }
@@ -97,11 +100,10 @@ import TmPage from "common/TmPage"
 import TmBalance from "./TmBalance"
 import DelegationsOverview from "staking/DelegationsOverview"
 import Undelegations from "staking/Undelegations"
-import TimePieBlock from "./TimePieBlock"
 import StakeAllocationBlock from "./StakeAllocationBlock"
-import Widget from "./components/Widget"
 import LightWidget from "./components/LightWidget"
 import moment from "moment"
+import tooltips from "src/components/tooltips"
 
 export default {
   name: `page-portfolio`,
@@ -111,11 +113,10 @@ export default {
     Undelegations,
     DelegationsOverview,
     TmBalance,
-    Widget,
-    LightWidget,
-    TimePieBlock
+    LightWidget
   },
   data: () => ({
+    tooltips,
     lastUpdate: 0,
     lastEpochTime: moment()
       .add(-1, "day")
@@ -129,18 +130,45 @@ export default {
       isNetworkInfoLoading: state => state.connection.isNetworkInfoLoading
     }),
     delegations() {
-      if (this.delegates.loading) {
-        return []
-      }
+      return this.delegates.loading
+        ? []
+        : this.delegates.delegates
+            .filter(d => d.amount > 0)
+            .map(d => ({
+              ...d,
+              validator: d.validator_info.name
+            }))
+    },
+    undelegations() {
+      const epoch = this.connection.networkInfo.current_epoch
+      const delegates = this.delegates.loading ? [] : this.delegates.delegates
+      const undelegations = []
+      for (let i = 0; i < delegates.length; i++) {
+        const d = delegates[i]
+        for (let j = 0; j < d.Undelegations.length; j++) {
+          const ud = d.Undelegations[j]
+          if (ud.Epoch + 7 < epoch) continue
 
-      const delegates = this.delegates.delegates
+          const lastEpochInCommit = d.validator_info["last-epoch-in-committee"]
+          let remaining_epoch = 1
 
-      return delegates
-        ? delegates.map(d => ({
+          // if (lastEpochInCommit) {
+          //   remaining_epoch = Math.min(lastEpochInCommit, ud.Epoch) - epoch + 1
+          // }
+
+          undelegations.push({
+            ...d.validator_info,
+            moniker: d.validator_info.name,
+            operator_address: d.validator_info.address,
             ...d,
-            validator: d.validator_info.name
-          }))
-        : []
+            stake: ud.Amount,
+            remaining_epoch
+          })
+        }
+      }
+      // console.log(this.networkInfo, undelegations)
+
+      return undelegations
     }
   },
   watch: {

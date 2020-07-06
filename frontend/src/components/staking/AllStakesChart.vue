@@ -18,71 +18,151 @@ import { ones, zeroDecimals } from "../../scripts/num"
 //   return Math.round(Number(min) + Math.random() * (number || 100))
 // }
 
+const isEqualArr = (a, b) =>
+  a.length === b.length && a.every((item, idx) => item === b[idx])
+
 export default {
   name: "AllStakesChart",
   components: { ChartBar },
-  props: ["data", "median", "networkInfo"],
-  data: () => ({
-    options: {
-      plugins: {
-        labels: false,
-      },
-      responsive: true,
-      maintainAspectRatio: false,
-      tooltips: {
-        mode: "index",
-        intersect: false,
-        callbacks: {
-          title: (data) => "",
-          label: (data, a, b) => 
-            zeroDecimals(data.yLabel) + " ONE Staked"// by " + a.datasets[0].pointRadius({dataIndex: data.index})
+  props: ["raw", "eff", "median"],
+  data: function() {
+    return {
+      rawStake: [],
+      effStake: [],
+      labels: [],
+      options: {
+        plugins: {
+          labels: false
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+        tooltips: {
+          mode: "index",
+          intersect: false,
+          custom: function(tooltipModel) {
+            var tooltipEl = document.getElementById("chartjs-tooltip")
+            tooltipModel.y = Math.max(35, tooltipModel.y)
+          },
+          callbacks: {
+            title: data => "",
+            label: ({ datasetIndex, xLabel, yLabel }) => {
+              if (datasetIndex === 0) {
+                return `${yLabel} effective stake`
+              }
+              return `${yLabel} bid`
+            }
+          }
+        },
+        legend: {
+          display: true
+        },
+        scales: {
+          xAxes: [
+            {
+              display: true,
+              gridLines: {
+                display: false
+              },
+              stacked: true
+            }
+          ],
+          yAxes: [
+            {
+              display: true,
+              gridLines: {
+                display: true
+              },
+              type: 'logarithmic',
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 10,
+                autoSkipPadding: 10,
+                suggestedMin: 0,
+                // max: this.median * 2,
+                callback: value =>
+                  value < this.median * 2 && value > this.median * 1.9
+                    ? ""
+                    : Math.floor(value)
+                        .toString()
+                        .replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+              }
+            }
+          ]
         }
-      },
-      scales: {
-        xAxes: [
-          {
-            display: true,
-            gridLines: {
-              display: false
-            },
-          }
-        ],
-        yAxes: [
-          {
-            display: true,
-            gridLines: {
-              display: true
-            },
-          }
-        ]
       }
     }
-  }),
+  },
+  watch: {
+    raw() {
+      this.calculateChartData()
+    },
+    eff() {
+      this.calculateChartData()
+    }
+  },
+  mounted() {
+    this.calculateChartData()
+  },
+  methods: {
+    calculateChartData() {
+      const data = this.raw
+        .map((v, i) => ({
+          raw: Math.floor(ones(v)),
+          eff: Math.floor(ones(this.eff[i]))
+        }))
+        .sort((a, b) => a.raw - b.raw)
+        .reverse()
+
+      //.sort((a, b) => a.eff - b.eff)
+      //labels
+      const labels = data.map((v, i) => i + 1)
+      //map out indiv stakes
+      const rawStake = data.map(v => v.raw)
+      const effStake = data.map(v => v.eff)
+
+      if (!isEqualArr(rawStake, this.rawStake)) {
+        this.rawStake = rawStake
+      }
+
+      if (!isEqualArr(effStake, this.effStake)) {
+        this.effStake = effStake
+      }
+
+      if (!isEqualArr(labels, this.labels)) {
+        this.labels = labels
+      }
+    }
+  },
   computed: {
     chartdata() {
-
-      const data = this.data.map((v) => Math.floor(ones(v))).reverse()
-      const labels = data.map((v, idx) => idx)
-      const even = data.length % 2 === 0
-      const median = Math.floor(data.length/2)
-      const colors = data.map((v, i) => {
-        if (even && (i === median || i === median+1)) {
-          return '#FF0000'
+      //median and colors
+      const even = this.effStake.length % 2 === 0
+      const median = Math.floor(this.effStake.length / 2)
+      const colors = this.effStake.map((v, i) => {
+        if (even && (i === median || i === median + 1)) {
+          return "rgba(102, 161, 255, 0.75)"
         } else if (i === median) {
-          return '#FF0000'
+          return "rgba(102, 161, 255, 0.75)"
         }
-        // return '#0981cf'
-        return '#00ADE8'
+        return "#00ADE844"
       })
-      
+
       return {
-        labels,
+        labels: this.labels,
         datasets: [
           {
-            label: "Staked ONE distribution",
+            label: "Effective Stake",
+            data: this.effStake,
+            borderColor: colors,
             backgroundColor: colors,
+            borderWidth: 1
+          },
+          {
+            label: "Bid",
+            backgroundColor: "#4fe7c888",
+            data: this.rawStake,
             minHeight: 16,
-            data,
+            borderWidth: 0
           }
         ]
       }
@@ -91,9 +171,21 @@ export default {
 }
 </script>
 
-<style>
+<style scoped lang="scss">
 .chart-container {
   background: white;
-  margin-bottom: var(--double);
+  border: 1px solid var(--light2);
+  padding: var(--unit);
+  border-radius: var(--unit);
+}
+
+@media screen and (max-width: 414px) {
+  .chart-container {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    width: 100vw;
+    margin-left: -32px;
+  }
 }
 </style>

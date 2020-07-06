@@ -35,7 +35,7 @@ export default {
         intersect: false,
         callbacks: {
           title: (data) => "",
-          label: (data, a, b) => `${zeroDecimals(data.yLabel)} Seats Elected at epoch ${data.xLabel}`
+          label: (data, a, b) => `${zeroDecimals(data.yLabel)} staked at epoch ${data.xLabel}`
         }
       },
       legend: {
@@ -44,6 +44,10 @@ export default {
       scales: {
         xAxes: [
           {
+            scaleLabel: {
+              display: true,
+              labelString: 'epochs'
+            },
             display: true,
             gridLines: {
               display: false
@@ -52,10 +56,17 @@ export default {
         ],
         yAxes: [
           {
+            scaleLabel: {
+              display: true,
+              labelString: 'ONE'
+            },
             display: true,
             gridLines: {
               display: true
             },
+            ticks: {
+              min: 0
+            }
           }
         ]
       }
@@ -71,8 +82,11 @@ export default {
         datasets: [
           {
             label: "Staked ONE distribution",
-            // backgroundColor: colors,
+            backgroundColor: '#00ADE888',
+            borderColor: 'transparent',
+            pointRadius: 0,
             minHeight: 16,
+        lineTension: 0,
             data: elected,
           }
         ]
@@ -82,7 +96,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .chart-container {
   background: white;
   margin-bottom: var(--double);

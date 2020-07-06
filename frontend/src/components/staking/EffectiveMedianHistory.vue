@@ -28,14 +28,13 @@ export default {
       plugins: {
         labels: false,
       },
-      responsive: true,
       maintainAspectRatio: false,
       tooltips: {
         mode: "index",
         intersect: false,
         callbacks: {
           title: (data) => "",
-          label: (data, a, b) => `${zeroDecimals(data.yLabel)} Seats Elected at epoch ${data.xLabel}`
+          label: (data, a, b) => `${zeroDecimals(data.yLabel)} effective median stake at epoch ${data.xLabel}`
         }
       },
       legend: {
@@ -44,6 +43,10 @@ export default {
       scales: {
         xAxes: [
           {
+            scaleLabel: {
+              display: true,
+              labelString: 'epochs'
+            },
             display: true,
             gridLines: {
               display: false
@@ -52,10 +55,17 @@ export default {
         ],
         yAxes: [
           {
+            scaleLabel: {
+              display: true,
+              labelString: 'ONE'
+            },
             display: true,
             gridLines: {
               display: true
             },
+            ticks: {
+              min: 0
+            }
           }
         ]
       }
@@ -65,13 +75,16 @@ export default {
     chartdata() {
       const epochs = Object.keys(this.data)
       const elected = epochs.sort().map((k) => ones(this.data[k].effective_median_stake))
-      
+
       return {
         labels: epochs,
         datasets: [
           {
-            label: "Staked ONE distribution",
-            // backgroundColor: colors,
+            label: "epoch",
+            backgroundColor: '#00ADE888',
+            borderColor: 'transparent',
+            pointRadius: 0,
+        lineTension: 0,
             minHeight: 16,
             data: elected,
           }
@@ -82,7 +95,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .chart-container {
   background: white;
   margin-bottom: var(--double);

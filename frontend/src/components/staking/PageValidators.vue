@@ -1,43 +1,30 @@
 <template>
-  <PageContainer
-    :managed="true"
-    :data-empty="validators && validators.length === 0"
-    title="Validators"
-  >
+  <PageContainer :managed="true" :epoch="true" title="Validators">
     <template slot="managed-body">
       <div class="networkInfo">
         <div class="networkInfo-column">
           <div id="validators_median_stake" class="networkInfo-item">
-            <h4>Effective median stake:</h4>
+            <h4 v-tooltip.top="tooltips.v_list.effective_median_stake">
+              Effective Median Stake:
+            </h4>
             {{ networkInfo.effective_median_stake | ones | zeroDecimals }} ONE
-            <!-- <PercentageChange
-              :amount="networkInfo.effective_median_stake_changed"
-            /> -->
           </div>
           <div id="validators_total_stake" class="networkInfo-item">
-            <h4>Total stake:</h4>
+            <h4 v-tooltip.top="tooltips.v_list.total_stake">
+              Total Network Stake:
+            </h4>
             {{ networkInfo["total-staking"] | ones | zeroDecimals }} ONE
-            <!-- <PercentageChange :amount="networkInfo['total-staking-changed']" /> -->
-          </div>
-          <!-- <div class="networkInfo-item">
-            <h4>Total seats:</h4>
-            {{ networkInfo.total_seats }}
           </div>
           <div class="networkInfo-item">
-            <h4>Total elected seats:</h4>
-            {{ networkInfo.total_seats_used }}
-          </div> -->
-          <div class="networkInfo-item">
-            <h4>Current block number:</h4>
+            <h4 v-tooltip.top="tooltips.v_list.current_block_number">
+              Current Block Height:
+            </h4>
             <a :href="linkToTransaction" target="_blank">
               #{{ networkInfo.current_block_number }}
             </a>
           </div>
         </div>
       </div>
-      <!-- <div v-if="networkInfo.staking_distro">
-        <AllStakesChart :data="networkInfo.staking_distro" />
-      </div> -->
       <div v-if="isNetworkInfoLoading" class="validatorTable">
         <div class="filterOptions">
           <TmField
@@ -47,7 +34,20 @@
           />
           <div class="toggles">
             <TmBtn
+              v-if="isMultiDelegationSupport"
+              :value="
+                selectedValidators.length
+                  ? `Delegate (${selectedValidators.length})`
+                  : 'Delegate'
+              "
+              v-tooltip.top="tooltips.v_list.multi_delegate"
+              class="btn-radio secondary"
+              @click.native="multidelgate"
+              v-bind:disabled="selectedValidators.length === 0"
+            />
+            <TmBtn
               value="Elected"
+              v-tooltip.top="tooltips.v_list.elected"
               :number="totalActive"
               class="btn-radio secondary"
               :type="activeOnly ? `active` : `secondary`"
@@ -55,6 +55,7 @@
             />
             <TmBtn
               value="All"
+              v-tooltip.top="tooltips.v_list.all"
               :number="total"
               class="btn-radio secondary"
               :type="!activeOnly ? `active` : `secondary`"
@@ -63,45 +64,44 @@
           </div>
         </div>
         <TableValidators
-          :data="validators"
           :active-only="activeOnly"
-          :search="searchTerm"
+          :search="searchTerm.trim()"
           show-on-mobile="expectedReturns"
         />
-        <div
-          v-if="validators && validators.length === 0 && searchTerm"
-          class="no-results"
-        >
-          No results for these search terms
-        </div>
       </div>
-      <TmDataLoading v-if="isLoading" />
+
+      <MultidelegationModal
+        ref="multidelegationModal"
+        :from-options="delegationTargetOptions()"
+        :to="selectedValidators"
+        :denom="bondDenom"
+        :minAmount="1000 * selectedValidators.length"
+      />
     </template>
   </PageContainer>
 </template>
 
 <script>
-import { mapState } from "vuex"
+import { mapGetters, mapState } from "vuex"
 import TableValidators from "staking/TableValidators"
-import AllStakesChart from "staking/AllStakesChart"
 import PageContainer from "common/PageContainer"
 import TmField from "common/TmField"
 import TmBtn from "common/TmBtn"
-import TmDataLoading from "common/TmDataLoading"
 import { transactionToShortString } from "src/scripts/transaction-utils"
 import { ones, shortDecimals, zeroDecimals, twoDecimals } from "scripts/num"
-import PercentageChange from "./components/PercentageChange"
+import tooltips from "src/components/tooltips"
+import MultidelegationModal from "src/ActionModal/components/MultidelegationModal"
+import { formatBech32 } from "../../filters"
+import isEmpty from "lodash.isempty"
 
 export default {
   name: `tab-validators`,
   components: {
+    MultidelegationModal,
     TableValidators,
     PageContainer,
     TmField,
-    TmBtn,
-    TmDataLoading,
-    AllStakesChart,
-    PercentageChange
+    TmBtn
   },
   filters: {
     ones,
@@ -110,65 +110,104 @@ export default {
     twoDecimals
   },
   data: () => ({
+    tooltips,
     searchTerm: "",
     activeOnly: true
   }),
   computed: {
+    ...mapState([`session`, `delegates`, `validators`]),
+    ...mapGetters([`bondDenom`, `committedDelegations`, `liquidAtoms`]),
     ...mapState({ network: state => state.connection.network }),
     ...mapState({ networkConfig: state => state.connection.networkConfig }),
     ...mapState({ networkInfo: state => state.connection.networkInfo }),
     ...mapState({
-      isNetworkInfoLoading: state => state.connection.isNetworkInfoLoading
+      isNetworkInfoLoading: state => state.connection.isNetworkInfoLoading,
+      isMultiDelegationSupport: state =>
+        state.session.sessionType === "extension" &&
+        state.session.extensionVersion >= 16
     }),
     ...mapState({
-      allValidators: state =>
-        state.validators.loaded ? state.validators.validators : [],
       total: state => state.validators.total,
-      totalActive: state => state.validators.totalActive
+      totalActive: state => state.validators.totalActive,
+      selectedValidators: state => state.validators.selected
     }),
     ...mapState({ isLoading: state => state.validators.loading }),
-    activeValidators: state =>
-      state.allValidators.filter(v => v.active === true),
-    validators: state => {
-      return state.allValidators
-    },
     prettyTransactionHash() {
       return this.networkInfo.current_block_hash
         ? transactionToShortString(this.networkInfo.current_block_hash)
         : ""
     },
     linkToTransaction() {
-      const blocksUrl = this.networkConfig.explorer_url
-        ? this.networkConfig.explorer_url.replace("tx", "block")
-        : ""
-
+      const blocksUrl = this.networkConfig.explorer_url + "/block/"
       return blocksUrl + this.networkInfo.current_block_hash
     }
   },
-  async mounted() {
-    // this.$store.dispatch(`getValidators`)
-    this.$store.dispatch("getDelegates")
+  methods: {
+    multidelgate() {
+      window.ga("send", "pageview", "/multidelegate")
+      window.ga("send", "event", "multidelegate", "open", "modal")
+      this.$refs.multidelegationModal.open()
+    },
+    delegationTargetOptions(
+      { session, liquidAtoms, committedDelegations, $route, delegates } = this
+    ) {
+      if (!session.signedIn) return []
 
-    console.log(this)
+      //- First option should always be your wallet (i.e normal delegation)
+      const myWallet = [
+        {
+          address: session.address,
+          maximum: Math.floor(liquidAtoms),
+          key: `My Wallet - ${formatBech32(session.address, false, 20)}`,
+          value: 0
+        }
+      ]
+      const bondedValidators = Object.keys(committedDelegations)
+      if (isEmpty(bondedValidators)) {
+        return myWallet
+      }
+      //- The rest of the options are from your other bonded validators
+      //- We skip the option of redelegating to the same address
+      const redelegationOptions = bondedValidators
+        .filter(address => address != $route.params.validator)
+        .reduce((validators, address) => {
+          const delegate = delegates.delegates.find(function(validator) {
+            return validator.operator_address === address
+          })
+
+          const name = delegate.validator_info && delegate.validator_info.name
+
+          return validators.concat({
+            address: address,
+            maximum: Math.floor(committedDelegations[address]),
+            key: `${name} - ${formatBech32(
+              delegate.delegator_address,
+              false,
+              20
+            )}`,
+            value: validators.length + 1
+          })
+        }, [])
+      return myWallet.concat(redelegationOptions)
+    }
   }
 }
 </script>
 
 <style lang="scss">
-
-.validatorTable, .networkInfo {
+.validatorTable,
+.networkInfo {
   background: white;
   margin: var(--double) 0;
   border-radius: var(--unit);
   border: 1px solid var(--light2);
 }
 .validatorTable {
-    overflow: hidden;
+  overflow: hidden;
   padding: var(--unit);
 }
 
 .networkInfo {
-  
   &-column {
     display: flex;
   }
@@ -189,7 +228,6 @@ export default {
   }
 }
 
-
 .filterOptions {
   display: flex;
   justify-content: space-between;
@@ -197,17 +235,17 @@ export default {
 
   .toggles {
     button {
-      background: white ;
+      background: white;
       border: 1px solid var(--light2);
       border-radius: var(--double) !important;
-      
+
       &.secondary {
-        background:white !important;
+        background: white;
         color: var(--gray);
       }
       &.active {
-        background: #F4FCFF !important;
-        color: var(--blue);
+        background: var(--blue);
+        color: white;
       }
       &.number-circle {
         margin-right: -var(--unit);
@@ -231,16 +269,13 @@ export default {
   }
 }
 
-
 .no-results {
   text-align: center;
   margin: 3rem;
   color: var(--dim);
 }
 
-
-@media screen and (max-width: 411px) {
-
+@media screen and (max-width: 414px) {
   .validatorTable {
     margin-left: calc(-2 * var(--unit)) !important;
     width: calc(100vw - 1px);
@@ -250,37 +285,14 @@ export default {
   }
 
   .filterOptions {
-    width: 100vw; 
+    width: 100vw;
     height: 48px;
     .toggles {
       text-align: right;
       margin-right: 8px;
       transform: scale(0.8);
-      width: 300px;
+      width: 100vw;
     }
   }
 }
-
-// @media screen and (min-width: 768px) {
-//   .filterOptions {
-//     justify-content: space-between;
-//     flex-direction: row;
-//     margin: 0.5rem 2rem 1rem;
-
-//     .toggles {
-//       margin-bottom: 0;
-//     }
-
-//     input {
-//       max-width: 300px;
-//     }
-//   }
-// }
-
-
-// @media screen and (max-width: 500px) {
-//   .networkInfo {
-//     flex-direction: column;
-//   }
-// }
 </style>

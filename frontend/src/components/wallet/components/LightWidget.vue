@@ -1,7 +1,15 @@
 <template>
   <div :class="['widget-container', type ? type : ''].join(' ')">
     <div class="widget-portfolio-light">
-      <div class="widget-title" v-if="title">
+      <div
+        v-info-style
+        v-if="title && tooltip"
+        v-tooltip.top="tooltip"
+        class="widget-title"
+      >
+        {{ title }}
+      </div>
+      <div v-else-if="title" class="widget-title">
         {{ title }}
       </div>
       <div class="widget-body">
@@ -14,7 +22,7 @@
 <script>
 export default {
   name: `widget`,
-  props: ["title", "type"]
+  props: ["title", "type", "tooltip"]
 }
 </script>
 
@@ -23,6 +31,13 @@ export default {
   margin-right: var(--unit);
   display: flex;
   flex-direction: column;
+  width: 25%;
+}
+
+@media screen and (max-width: 1000px) {
+  .widget-container {
+    width: 100%;
+  }
 }
 
 .widget-container.connected:not(:last-child) {
@@ -41,7 +56,6 @@ export default {
   overflow: hidden;
   margin-bottom: var(--unit);
 }
-
 .widget-title {
   font-size: 16px;
   color: var(--blue);
@@ -55,14 +69,12 @@ export default {
   overflow: hidden;
 }
 
-@media screen and (max-width: 411px) {
-    .widget-container {
-      max-width: calc(100vw - 2 * var(--double));
-    }
-    .widget-body {
-      overflow-x: scroll;
-    }
-
+@media screen and (max-width: 414px) {
+  .widget-container {
+    max-width: calc(100vw - 2 * var(--double));
+  }
+  .widget-body {
+    overflow-x: scroll;
+  }
 }
-
 </style>

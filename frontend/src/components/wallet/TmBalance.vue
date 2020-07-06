@@ -1,32 +1,40 @@
 <template>
   <div class="balance-header">
     <div class="values-container">
-      <div class="total-atoms">
-        <h3>Total {{ bondDenom | viewDenom }}</h3>
-        <h2 class="total-atoms__value">
-          {{ totalAtomsDisplay | ones | zeroDecimals }}
-        </h2>
+      <div class="top-container">
+        <div class="total-atoms">
+          <h3 v-info-style v-tooltip.top="tooltips.portfolio.total_one">
+            Total {{ bondDenom | viewDenom }}
+          </h3>
+          <h2 class="total-atoms__value">
+            {{ totalAtomsDisplay | ones | zeroDecimals }}
+          </h2>
+        </div>
+
+        <div class="available-atoms">
+          <h3 v-info-style v-tooltip.top="tooltips.portfolio.available">
+            Available
+          </h3>
+          <h2>{{ unbondedAtoms | ones | zeroDecimals }}</h2>
+        </div>
       </div>
 
       <div class="row small-container">
         <div class="availabgit le-atoms">
-          <h3>Staked</h3>
+          <h3 v-info-style v-tooltip.top="tooltips.portfolio.staked">Staked</h3>
           <h2>{{ staked | ones | zeroDecimals }}</h2>
         </div>
 
         <div class="rewards">
-          <h3>Current reward</h3>
+          <h3 v-info-style v-tooltip.top="tooltips.portfolio.rewards">
+            Rewards
+          </h3>
           <h2>+{{ rewards | ones | zeroDecimals }}</h2>
         </div>
-
-        <div class="available-atoms">
-          <h3>Available</h3>
-          <h2>{{ unbondedAtoms | ones | zeroDecimals }}</h2>
-        </div>
       </div>
-      <div class="total-atoms total-undel">
+      <div class="total-atoms total-undel" v-if="totalUndelegated">
         <h3>Total pending undelegations {{ bondDenom | viewDenom }}</h3>
-        <h2 class="total-atoms__value">
+        <h2 class="total-atoms__value" style="color: #000000; margin-bottom: 10px;">
           {{ totalUndelegated | ones | zeroDecimals }}
         </h2>
       </div>
@@ -62,7 +70,8 @@ import TmBtn from "common/TmBtn"
 import SendModal from "src/ActionModal/components/SendModal"
 import ModalWithdrawRewards from "src/ActionModal/components/ModalWithdrawRewards"
 import { mapState, mapGetters } from "vuex"
-import _ from "lodash"
+import sumBy from "lodash.sumby"
+import tooltips from "src/components/tooltips"
 
 export default {
   name: `tm-balance`,
@@ -79,7 +88,8 @@ export default {
   data() {
     return {
       num,
-      lastUpdate: 0
+      lastUpdate: 0,
+      tooltips
     }
   },
   computed: {
@@ -106,8 +116,8 @@ export default {
       const delegates = this.delegates.delegates
       return this.delegates.loaded
         ? delegates
-          ? _.sumBy(delegates, elem =>
-              _.sumBy(elem.Undelegations, el => el.Amount)
+          ? sumBy(delegates, elem =>
+              sumBy(elem.Undelegations, el => el.Amount)
             )
           : 0
         : 0
@@ -161,7 +171,7 @@ export default {
   }
 }
 </script>
-<style scoped>
+<style scoped lang="scss">
 .balance-header {
   margin: 0 var(--unit);
 }
@@ -184,19 +194,26 @@ export default {
   white-space: nowrap;
 }
 
-.total-atoms {
+.top-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-content: space-between;
+
   color: white;
   padding: var(--unit);
   background: var(--blue);
-  border-top-left-radius: var(--unit  );
+  border-top-left-radius: var(--unit);
   border-top-right-radius: var(--unit);
+  > div {
+    flex: 1;
+  }
 }
 
 .total-atoms.total-undel {
   margin-top: var(--unit);
-  border-radius: var(--unit  );
+  border-radius: var(--unit);
 }
-
 
 .small-container {
   width: 100%;
@@ -206,7 +223,7 @@ export default {
   padding: var(--unit);
   border-bottom-left-radius: var(--unit);
   border-bottom-right-radius: var(--unit);
-  border:1px solid #ddd;
+  border: 1px solid #ddd;
   border-top: none;
 }
 
@@ -215,15 +232,13 @@ export default {
 }
 
 .availabgit,
-.available-atoms,
 .rewards {
   flex: 1;
   color: var(--gray);
 }
 
-
 .button-container {
-  padding:0;
+  padding: 0;
   padding-top: var(--unit);
   display: flex;
   align-items: center;
@@ -231,10 +246,8 @@ export default {
   width: 100%;
 }
 
-
 .row {
   display: flex;
   flex-direction: row;
 }
-
 </style>

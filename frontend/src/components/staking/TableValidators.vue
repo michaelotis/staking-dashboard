@@ -1,49 +1,48 @@
 <template>
-  <div id="validators_table">
-    <table class="data-table card-white">
-      <thead class="table-header">
-        <PanelSort
-          :sort="sort"
-          :properties="properties"
-          :show-on-mobile="showOnMobile"
-        />
-      </thead>
-      <tbody>
-        <LiValidator
-          v-for="(validator, index) in showingValidators"
-          :key="validator.operator_address"
-          :index="startIndex + index"
-          :validator="validator"
-          :show-on-mobile="showOnMobile"
-        />
-      </tbody>
-    </table>
+  <div
+    id="validators_table"
+    class="table-container"
+    ref="loadingContainer"
+    style="position: relative;"
+  >
+    <BaseGrid
+      :sort="sort"
+      :columns="columns"
+      :data="showingValidators"
+      :on-row-click="onClickValidator"
+    />
     <PanelPagination :pagination="pagination" :total="totalFound" />
   </div>
 </template>
 
 <script>
 import { mapGetters, mapState } from "vuex"
-import LiValidator from "staking/LiValidator"
-import PanelSort from "staking/PanelSort"
-import PanelPagination from "staking/PanelPagination"
 import { expectedReturns } from "scripts/returns"
+import BaseGrid from "src/components/ui/BaseGrid"
+import PanelPagination from "src/components/ui/BaseGrid/PanelPagination"
+
+import ValidatorSelect from "./components/ValidatorSelect"
+import ValidatorStatus from "./components/ValidatorStatus"
+import ValidatorName from "./components/ValidatorName"
+
+import tooltips from "src/components/tooltips"
+
+import {
+  percent,
+  shortDecimals,
+  atoms,
+  ones,
+  zeroDecimals,
+  twoDecimals
+} from "scripts/num"
+
 export default {
   name: `table-validators`,
   components: {
-    LiValidator,
-    PanelSort,
+    BaseGrid,
     PanelPagination
   },
   props: {
-    data: {
-      type: Array,
-      required: true
-    },
-    showOnMobile: {
-      type: String,
-      default: () => "returns"
-    },
     activeOnly: {
       type: Boolean,
       default: () => true
@@ -56,19 +55,24 @@ export default {
   data: () => ({
     query: ``,
     sort: {
-      property: `expectedReturns`,
+      property: `uptime_percentage`,
       order: `desc`
     },
     pagination: {
       pageIndex: 0,
-      pageSize: 20
+      pageSize: 50
     },
-    fetchTimeoutId: null
+    fetchTimeoutId: null,
+    loading: false,
+    data: []
   }),
   computed: {
     ...mapState([`distribution`, `pool`, `session`, "delegates", "validators"]),
     ...mapState({
-      annualProvision: state => state.minting.annualProvision
+      annualProvision: state => state.minting.annualProvision,
+      isMultiDelegationSupport: state =>
+        state.session.sessionType === "extension" &&
+        state.session.extensionVersion >= 16
     }),
     ...mapState({
       totalFound: state => state.validators.totalFound
@@ -84,31 +88,30 @@ export default {
         distribution
       } = this
     ) {
-      return data.map(v => {
-
-        const delegation = this.delegates.delegates.find(
-          d => d.validator_address === v.operator_address
-        )
-
-        return Object.assign({}, v, {
-          small_moniker: v.moniker.toLowerCase(),
-          my_delegations: delegation ? delegation.amount : 0,
-          rewards:
-            session.signedIn && distribution.rewards[v.operator_address]
-              ? distribution.rewards[v.operator_address][this.bondDenom]
-              : 0,
-          expectedReturns: annualProvision
-            ? expectedReturns(
-                v,
-                parseInt(pool.pool.bonded_tokens),
-                parseFloat(annualProvision)
-              )
-            : undefined
+      return data
+        .map(v => {
+          const delegation = this.delegates.delegates.find(
+            d => d.validator_address === v.operator_address
+          )
+          return Object.assign({}, v, {
+            small_moniker: v.moniker.toLowerCase(),
+            my_delegations: delegation ? delegation.amount : 0,
+            rewards:
+              session.signedIn && distribution.rewards[v.operator_address]
+                ? distribution.rewards[v.operator_address][this.bondDenom]
+                : 0,
+            expectedReturns: annualProvision
+              ? expectedReturns(
+                  v,
+                  parseInt(pool.pool.bonded_tokens),
+                  parseFloat(annualProvision)
+                )
+              : undefined
+          })
         })
-      })
+        .filter(v => ones(v.total_stake) >= 10000)
     },
     sortedEnrichedValidators() {
-      console.log(this.enrichedValidators)
       return this.enrichedValidators.slice(0)
     },
     startIndex() {
@@ -117,38 +120,85 @@ export default {
     showingValidators() {
       return this.sortedEnrichedValidators
     },
-    properties() {
+    columns() {
       let props = [
+        {
+          title: `Status`,
+          value: `status`,
+          tooltip: tooltips.v_list.status,
+          width: "110px",
+          renderComponent: ValidatorStatus // render as Component - use custom Vue components
+        },
         {
           title: `Name`,
           value: `name`,
-          tooltip: `The validator's moniker`
+          key: item => item.address,
+          tooltip: tooltips.v_list.name,
+          renderComponent: ValidatorName // render as Component - use custom Vue components
+        },
+        {
+          title: `Expected Return`,
+          value: `apr`,
+          tooltip: tooltips.v_list.average_apr,
+          width: "200px",
+          align: "right",
+          render: value => percent(value)
+        },
+        {
+          title: `Stake`,
+          value: `total_stake`,
+          tooltip: tooltips.v_list.stake,
+          width: "130px",
+          align: "right",
+          render: value => zeroDecimals(ones(value))
         },
         {
           title: `Fees`,
           value: `rate`,
-          tooltip: `Commission fees`
-        },
-        {
-          title: `APR %`,
-          value: `apr`,
-          tooltip: `APR %`
-        },
-        {
-          title: `Stake`,
-          value: `average_stake_by_bls`,
-          tooltip: `Average ONE staked`
+          tooltip: tooltips.v_list.fees,
+          width: "96px",
+          align: "right",
+          render: value => percent(value) // render as function - do format value here
         },
         {
           title: `Uptime`,
           value: `uptime_percentage`,
-          tooltip: `Percentage validator has been elected vs. not`
+          tooltip: tooltips.v_list.uptime,
+          width: "110px",
+          align: "right",
+          render: value => percent(value)
         }
       ]
-      if (this.$mq === 'sm') {
-        const keep = ['name', 'apr']
-        props = props.filter((p) => keep.includes(p.name))
+
+      if (this.isMultiDelegationSupport) {
+        props.unshift({
+          title: ``,
+          value: `select`,
+          key: item => item.address,
+          tooltip: tooltips.v_list.select,
+          width: "60px",
+          renderComponent: ValidatorSelect // render as Component - use custom Vue components
+        })
       }
+
+      const aprColumn = props.find(p => p.value === "apr")
+
+      if (this.$mq === "xlg") {
+        aprColumn.width = "200px"
+      } else {
+        aprColumn.width = "130px"
+      }
+
+      if (this.$mq === "tab") {
+        const keep = ["name", "apr", "uptime_percentage"]
+        props = props.filter(p => keep.includes(p.value))
+      }
+
+      if (this.$mq === "sm" || this.$mq === "md") {
+        const keep = ["name", "uptime_percentage"]
+        props = props.filter(p => keep.includes(p.value))
+      }
+
       return props
     }
   },
@@ -172,6 +222,16 @@ export default {
         this.pagination.pageIndex = 0
         this.getValidators()
       }, 300)
+    },
+    loading() {
+      if (this.loading) {
+        this.loader = this.$loading.show({
+          container: this.$refs.loadingContainer,
+          canCancel: false
+        })
+      } else if (this.loader) {
+        this.loader.hide()
+      }
     }
   },
   // watch: {
@@ -190,31 +250,37 @@ export default {
     this.getValidators()
   },
   methods: {
-    getValidators() {
-      this.$store.dispatch(`getValidatorsWithParams`, {
-        active: this.activeOnly,
-        page: this.pagination.pageIndex,
-        size: this.pagination.pageSize,
-        sortProperty: this.sort.property,
-        sortOrder: this.sort.order,
-        search: this.search
+    onClickValidator(validator) {
+      this.$router.push({
+        name: "validator",
+        params: { validator: validator.operator_address }
       })
+    },
+    getValidators() {
+      this.loading = true
+
+      this.$store
+        .dispatch(`getValidatorsWithParams`, {
+          active: this.activeOnly,
+          page: this.pagination.pageIndex,
+          size: this.pagination.pageSize,
+          sortProperty: this.sort.property,
+          sortOrder: this.sort.order,
+          search: this.search
+        })
+        .then(data => {
+          this.data = data
+          this.loading = false
+        })
     }
   }
 }
 </script>
 <style scoped lang="scss">
-
-table {
+.table-container {
   margin-top: var(--unit);
-  thead {
-    text-transform: uppercase;
-    font-weight: bold;
-  }
 }
 
-@media screen and (max-width: 411px) {
-  
+@media screen and (max-width: 414px) {
 }
-
 </style>

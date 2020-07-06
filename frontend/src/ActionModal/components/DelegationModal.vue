@@ -14,8 +14,9 @@
     <TmFormGroup class="action-modal-form-group">
       <div class="form-message notice">
         <span v-if="!isRedelegation()">
-          It will take 7 epochs to unlock your tokens after a delegation and the
-          tokens are still slashable if the validator behaves maliciously.
+          It will take until the end of current epoch to unlock your tokens
+          after a delegation and the tokens are still slashable if the validator
+          behaves maliciously.
         </span>
         <span v-else>
           Voting power and rewards will change instantly upon redelegation —
@@ -24,7 +25,8 @@
         </span>
       </div>
     </TmFormGroup>
-    <TmFormGroup class="action-modal-form-group" field-id="to" field-label="To">
+    <!-- <TmFormGroup class="action-modal-form-group" field-id="to" field-label="To"> -->
+    <TmFormGroup class="action-modal-form-group" field-id="to">
       <TmField id="to" v-model="to" type="text" readonly />
       <TmFormMsg
         v-if="validatorStatus === 'Inactive' && !isRedelegation()"
@@ -58,11 +60,17 @@
         type="select"
       />
     </TmFormGroup>
-    <TmFormGroup
+    <!-- <TmFormGroup
       :error="$v.amount.$error && $v.amount.$invalid"
       class="action-modal-form-group"
       field-id="amount"
       field-label="Amount"
+    > -->
+    <TmFormGroup
+      v-if="isBalanceEnough"
+      :error="$v.amount.$error && $v.amount.$invalid"
+      class="action-modal-form-group"
+      field-id="amount"
     >
       <span class="input-suffix-denom">{{ viewDenom(denom) }}</span>
       <TmFieldGroup>
@@ -82,13 +90,26 @@
           @click.native="setMaxAmount()"
         />
       </TmFieldGroup>
+
+      <div class="slider">
+        <div class="value">{{ sliderValueOutput }}%</div>
+        <input
+          v-model="sliderValue"
+          type="range"
+          min="0"
+          max="100"
+          step="10"
+          @input="change"
+        />
+      </div>
+
       <span v-if="!isRedelegation()" class="form-message">
-        Available to Delegate:
+        Available to Stake:
         {{ getFromBalance() }}
         {{ denom | viewDenom }}s
       </span>
       <div v-if="!isRedelegation()" class="form-message">
-        Remaining available stakes
+        Available for this Validator:
         {{ validator.remainder | ones | shortDecimals }}
         {{ denom | viewDenom }}s
       </div>
@@ -103,18 +124,34 @@
         name="Wallet"
         type="custom"
       />
-      <TmFormMsg v-else-if="$v.amount.$error && !$v.amount.decimal" name="Amount" type="numeric" />
+      <TmFormMsg
+        v-else-if="$v.amount.$error && !$v.amount.decimal"
+        name="Amount"
+        type="numeric"
+      />
       <TmFormMsg
         v-else-if="$v.amount.$error && (!$v.amount.required || amount === 0)"
         name="Amount"
         type="required"
       />
+      <!--      <TmFormMsg-->
+      <!--        v-else-if="$v.amount.$error && !$v.amount.between"-->
+      <!--        :max="$v.amount.$params.between.max"-->
+      <!--        :min="$v.amount.$params.between.min"-->
+      <!--        name="Amount"-->
+      <!--        type="between"-->
+      <!--      />-->
       <TmFormMsg
-        v-else-if="$v.amount.$error && !$v.amount.between"
-        :max="$v.amount.$params.between.max"
-        :min="$v.amount.$params.between.min"
+        v-else-if="$v.amount.$error && !$v.amount.minValue"
+        :min="$v.amount.$params.minValue.min"
         name="Amount"
-        type="between"
+        type="minValue"
+      />
+      <TmFormMsg
+        v-else-if="$v.amount.$error && !$v.amount.maxValue"
+        :max="$v.amount.$params.maxValue.max"
+        name="Amount"
+        type="maxValue"
       />
       <TmFormMsg
         v-else-if="isMaxAmount() && !isRedelegation()"
@@ -123,12 +160,20 @@
         class="tm-form-msg"
       />
     </TmFormGroup>
+
+    <div v-else class="body_container">
+      <TmFormMsg
+        name=""
+        type="custom"
+        :msg="`Not enough funds to delegate, minimum ${minAmountOnes} ONEs`"
+      />
+    </div>
   </ActionModal>
 </template>
 
 <script>
 import { mapState, mapGetters } from "vuex"
-import { between, decimal } from "vuelidate/lib/validators"
+import { decimal, minValue, maxValue } from "vuelidate/lib/validators"
 import {
   uatoms,
   atoms,
@@ -146,17 +191,17 @@ import ActionModal from "./ActionModal"
 import transaction from "../utils/transactionTypes"
 
 export default {
-    name: `delegation-modal`,
-    components: {
-        TmField,
-        TmFieldGroup,
-        TmBtn,
-        TmFormGroup,
-        TmFormMsg,
-        ActionModal
-    },
-    filters: {
-        viewDenom,
+  name: `delegation-modal`,
+  components: {
+    TmField,
+    TmFieldGroup,
+    TmBtn,
+    TmFormGroup,
+    TmFormMsg,
+    ActionModal
+  },
+  filters: {
+    viewDenom,
     ones,
     shortDecimals
   },
@@ -176,11 +221,17 @@ export default {
     denom: {
       type: String,
       required: true
+    },
+    minAmount: {
+      type: Number,
+      required: true
     }
   },
   data: () => ({
     amount: null,
-    selectedIndex: 0
+    selectedIndex: 0,
+    sliderValue: 50,
+    sliderValueOutput: 50
   }),
   computed: {
     ...mapState([`session`]),
@@ -188,124 +239,200 @@ export default {
     balance() {
       if (!this.session.signedIn) return 0
 
-            return this.fromOptions[this.selectedIndex].maximum
-        },
-        from() {
-            if (!this.session.signedIn) return ``
-
-            return this.fromOptions[this.selectedIndex].address
-        },
-        transactionData() {
-            if (!this.from) return {}
-
-            if (this.from === this.modalContext.userAddress) {
-                return {
-                    type: transaction.DELEGATE,
-                    validatorAddress: this.validator.operator_address,
-                    amount: uatoms(this.amount),
-                    denom: this.denom
-                }
-            } else {
-                const validatorSrc = this.modalContext.delegates.find(
-                    v => this.from === v.operator_address
-                )
-                return {
-                    type: transaction.REDELEGATE,
-                    validatorSourceAddress: validatorSrc.operator_address,
-                    validatorDestinationAddress: this.validator
-                        .operator_address,
-                    amount: uatoms(this.amount),
-                    denom: this.denom
-                }
-            }
-        },
-        notifyMessage() {
-            if (this.from === this.modalContext.userAddress) {
-                return {
-                    title: `Successful delegation!`,
-                    body: `You have successfully delegated your ${viewDenom(
-                        this.denom
-                    )}s`
-                }
-            } else {
-                return {
-                    title: `Successful redelegation!`,
-                    body: `You have successfully redelegated your ${viewDenom(
-                        this.denom
-                    )}s`
-                }
-            }
-        },
-        // Will be replaced by `status` field from backend
-        validatorStatus() {
-            if (
-                this.validator.jailed ||
-                this.validator.tombstoned ||
-                this.validator.status === 0
-            )
-                return `Inactive`
-            return `Active`
-        },
-        // Will be replaced by `status_detail` field from backend
-        validatorStatusDetailed() {
-            if (this.validator.jailed)
-                return `temporally banned from the network`
-            else if (this.validator.tombstoned) return `banned from the network`
-            else if (this.validator.status === 0)
-                return `banned from the network`
-            else return false
-        }
+      return this.fromOptions[this.selectedIndex].maximum
     },
-    methods: {
-        viewDenom,
-        open(options) {
-            if (
-                options &&
-                options.redelegation &&
-                this.fromOptions.length > 1
-            ) {
-                this.selectedIndex = 1
-            }
-            this.$refs.actionModal.open()
-        },
-        validateForm() {
-            this.$v.$touch()
+    from() {
+      if (!this.session.signedIn) return ``
 
-            return !this.$v.$invalid
-        },
-        clear() {
-            this.$v.$reset()
-
-            this.selectedIndex = 0
-            this.amount = null
-        },
-        setMaxAmount() {
-            this.amount = Math.min(atoms(this.balance), ones(this.validator.remainder))
-        },
-        isMaxAmount() {
-            return parseFloat(this.amount) === parseFloat(atoms(this.balance))
-        },
-        enterPressed() {
-            this.$refs.actionModal.validateChangeStep()
-        },
-        isRedelegation() {
-            return this.from !== this.modalContext.userAddress
-        },
-        getFromBalance() {
-            return atoms(this.balance)
-        }
+      return this.fromOptions[this.selectedIndex].address
     },
-    validations() {
+    isBalanceEnough() {
+      return atoms(this.balance) > ones(this.minAmount)
+    },
+    minAmountOnes() {
+      return ones(this.minAmount)
+    },
+    transactionData() {
+      if (!this.from) return {}
+
+      if (this.from === this.modalContext.userAddress) {
         return {
-            amount: {
-                required: x => !!x && x !== `0`,
-                decimal,
-                between: between(
-          SMALLEST,
+          type: transaction.DELEGATE,
+          validatorAddress: this.validator.operator_address,
+          amount: uatoms(this.amount),
+          denom: this.denom
+        }
+      } else {
+        const validatorSrc = this.modalContext.delegates.find(
+          v => this.from === v.operator_address
+        )
+        return {
+          type: transaction.REDELEGATE,
+          validatorSourceAddress: validatorSrc.operator_address,
+          validatorDestinationAddress: this.validator.operator_address,
+          amount: uatoms(this.amount),
+          denom: this.denom
+        }
+      }
+    },
+    notifyMessage() {
+      if (this.from === this.modalContext.userAddress) {
+        return {
+          title: `Successful delegation!`,
+          body: `You have successfully delegated your ${viewDenom(this.denom)}s`
+        }
+      } else {
+        return {
+          title: `Successful redelegation!`,
+          body: `You have successfully redelegated your ${viewDenom(
+            this.denom
+          )}s`
+        }
+      }
+    },
+    // Will be replaced by `status` field from backend
+    validatorStatus() {
+      if (
+        this.validator.jailed ||
+        this.validator.tombstoned ||
+        this.validator.status === 0
+      )
+        return `Inactive`
+      return `Active`
+    },
+    // Will be replaced by `status_detail` field from backend
+    validatorStatusDetailed() {
+      if (this.validator.jailed) return `temporally banned from the network`
+      else if (this.validator.tombstoned) return `banned from the network`
+      else if (this.validator.status === 0) return `banned from the network`
+      else return false
+    }
+  },
+  methods: {
+    change() {
+      this.sliderValueOutput = this.sliderValue
+      this.amount = atoms((this.balance * this.sliderValue) / 100)
+    },
+    viewDenom,
+    open(options) {
+      if (options && options.redelegation && this.fromOptions.length > 1) {
+        this.selectedIndex = 1
+      }
+      this.$refs.actionModal.open()
+    },
+    validateForm() {
+      this.$v.$touch()
+
+      return !this.$v.$invalid
+    },
+    clear() {
+      this.$v.$reset()
+
+      this.selectedIndex = 0
+      this.amount = null
+    },
+    setMaxAmount() {
+      this.amount = Math.min(
+        atoms(this.balance),
+        ones(this.validator.remainder)
+      )
+    },
+    isMaxAmount() {
+      return parseFloat(this.amount) === parseFloat(atoms(this.balance))
+    },
+    enterPressed() {
+      this.$refs.actionModal.validateChangeStep()
+    },
+    isRedelegation() {
+      return this.from !== this.modalContext.userAddress
+    },
+    getFromBalance() {
+      return atoms(this.balance)
+    }
+  },
+  validations() {
+    return {
+      amount: {
+        required: x => !!x && x !== `0`,
+        decimal,
+        minValue: minValue(Math.max(SMALLEST, ones(this.minAmount))),
+        maxValue: maxValue(
           Math.min(atoms(this.balance), ones(this.validator.remainder))
         )
-            }
-        }
+
+        // between: between(
+        //   Math.max(SMALLEST, this.minAmount),
+        //   Math.min(atoms(this.balance), ones(this.validator.remainder))
+        // )
+      }
     }
+  }
 }
 </script>
+<style scoped="true" lang="scss">
+.body_container {
+  margin: 20px 0px 40px 0px;
+}
+
+.slider {
+  margin: var(--unit);
+
+  .value {
+    text-align: center;
+  }
+
+  input[type="range"] {
+    padding: 0;
+    border: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: 100%;
+  }
+  input[type="range"]:focus {
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 8px;
+    cursor: pointer;
+    background: #ddd;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    border: 2px solid var(--blue);
+    height: 32px;
+    width: 32px;
+    border-radius: 16px;
+    background: #ffffff;
+    cursor: pointer;
+    margin-top: -12px;
+  }
+  input[type="range"]:focus::-webkit-slider-runnable-track {
+    background: #eee;
+    border: none;
+    outline: none;
+  }
+  input[type="range"]::-moz-range-track {
+    width: 100%;
+    height: 8px;
+    cursor: pointer;
+    background: #ddd;
+  }
+  input[type="range"]::-moz-range-thumb {
+    -webkit-appearance: none;
+    border: 2px solid var(--blue);
+    height: 32px;
+    width: 32px;
+    border-radius: 16px;
+    background: #ffffff;
+    cursor: pointer;
+    margin-top: -12px;
+  }
+  input[type="range"]::-ms-track {
+    width: 100%;
+    height: 8px;
+    cursor: pointer;
+    background: #ddd;
+  }
+}
+</style>

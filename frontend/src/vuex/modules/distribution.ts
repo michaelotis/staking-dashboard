@@ -40,6 +40,9 @@ export default ({ node }: { node: TNode }): Module<typeof emptyState, any> => ({
     setDelegationRewards(state, { validatorAddr, rewards }) {
       Vue.set(state.rewards, validatorAddr, rewards)
     },
+    setAllDelegationRewards(state, { rewards }) {
+      state.rewards = rewards;
+    },
     resetDelegationRewards(state) {
       state.rewards = {}
     },
@@ -80,14 +83,15 @@ export default ({ node }: { node: TNode }): Module<typeof emptyState, any> => ({
 
       commit(`resetDelegationRewards`)
 
+      const rewards: any = {}
+
       if (Array.isArray(rootState.delegates.delegates)) {
-        rootState.delegates.delegates.forEach((d: any) =>
-          commit(`setDelegationRewards`, {
-            validatorAddr: d.validator_address,
-            rewards: { one: Number(d.reward) }
-          })
+        rootState.delegates.delegates.forEach(
+          (d: any) => (rewards[d.validator_address] = { one: Number(d.reward) })
         )
       }
+
+      commit(`setAllDelegationRewards`, { rewards })
 
       // await Promise.all(
       //   yourValidators.map((validator: any) =>
@@ -97,38 +101,7 @@ export default ({ node }: { node: TNode }): Module<typeof emptyState, any> => ({
       state.loading = false
       state.loaded = true
     },
-    // async getRewardsFromValidator(
-    //   {
-    //     state,
-    //     rootState: { session },
-    //     getters: { bondDenom },
-    //     commit
-    //   },
-    //   validatorAddr
-    // ) {
-    //   state.loading = true
-    //   try {
-    //     // TODO move array fallback into cosmos-api
-    //     const rewardsArray =
-    //       (await node.get.delegatorRewardsFromValidator(
-    //         session.address,
-    //         validatorAddr
-    //       )) || []
-    //     const rewards = coinsToObject(rewardsArray)
-    //
-    //     // if the delegator has 0 rewards for a validator after a withdraw, this is trimmed
-    //     // to properly differentiate between 0 rewards and no delegation,
-    //     // we set the rewards to a 0 value on validators we know the delegator has bond with
-    //     rewards[bondDenom] = rewards[bondDenom] || 0
-    //
-    //     commit(`setDelegationRewards`, { validatorAddr, rewards })
-    //     commit(`setDistributionError`, null)
-    //     state.loaded = true
-    //   } catch (error) {
-    //     commit(`setDistributionError`, error)
-    //   }
-    //   state.loading = false
-    // },
+
     // TODO: move to a common parameters module
     async getDistributionParameters({ commit, state }) {
       state.loading = true

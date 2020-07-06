@@ -25,62 +25,37 @@
         </span>
       </li>
       <li class="column">
-        <h4 class="inline">Validator Since:&nbsp;</h4>
-        <span>Block #{{ validator.creation_height }}</span>
-      </li>
-    </ul>
-
-    <ul v-show="false" class="row">
-      <li>
-        <h4>Voting Power / Total Stake</h4>
-        <span id="page-profile__power">
-          {{ validator.voting_power | percent | notAvailable }} /
-          {{ validator.total_effective_stake | ones | shortDecimals }}
-        </span>
-      </li>
-      <li>
-        <h4>Self Stake</h4>
-        <span id="page-profile__self-bond"
-          >{{ selfBondPercent }} /
-          {{ validator.self_stake | ones | shortDecimals }}</span
+        <h4
+          v-info-style
+          v-tooltip.top="tooltips.v_profile.validator_since"
+          class="inline"
         >
-      </li>
-      <li>
-        <h4>Min Self Delegation</h4>
-        <span id="page-profile__min_self_delegation">
-          {{ validator.min_self_delegation | ones | shortDecimals }}
-        </span>
-      </li>
-      <li>
-        <h4>Max Total Delegation</h4>
-        <span id="page-profile__max_total_delegation">
-          {{ validator.max_total_delegation | ones | shortDecimals }}
-        </span>
-      </li>
-      <li>
-        <h4>Validator Since</h4>
+          Validator Since:&nbsp;
+        </h4>
         <span>Block #{{ validator.creation_height }}</span>
       </li>
-      <li>
-        <h4>Uptime</h4>
-        <span id="page-profile__uptime">
-          {{ validator.uptime_percentage | percent | notAvailable }}
-        </span>
-      </li>
-      <li>
-        <h4>Current Commission Rate</h4>
+      <li class="column">
+        <h4
+          v-info-style
+          v-tooltip.top="tooltips.v_profile.commission"
+          class="inline"
+        >
+          Fee:&nbsp;
+        </h4>
         <span>{{ validator.rate | percent | notAvailable }}</span>
       </li>
-      <li>
-        <h4>Max Commission Rate</h4>
-        <span>{{ validator.max_rate | percent | notAvailable }}</span>
+      <li class="column">
+        <h4
+          v-info-style
+          v-tooltip.top="tooltips.v_profile.max_daily_change"
+          class="inline"
+        >
+          Max Fee Change:&nbsp;
+        </h4>
+        <span>{{ validator.max_change_rate | percent | notAvailable }} (per day)</span>
       </li>
-      <li>
-        <h4>Max Daily Commission Change</h4>
-        <span>{{ validator.max_change_rate | percent | notAvailable }}</span>
-      </li>
-      <li>
-        <h4>Last Commission Change</h4>
+      <li v-show="false" class="column">
+        <h4 class="inline">Last Commission Change:&nbsp;</h4>
         <span>Block #{{ validator.update_height }}</span>
       </li>
     </ul>
@@ -89,6 +64,7 @@
 <script>
 import { shortDecimals, percent, ones } from "scripts/num"
 import Bech32 from "common/Bech32"
+import tooltips from "src/components/tooltips"
 
 export default {
   name: `general-info-block`,
@@ -106,6 +82,7 @@ export default {
     Bech32
   },
   props: ["validator"],
+  data: () => ({ tooltips }),
   computed: {
     selfBondPercent() {
       return percent(this.validator.self_stake / this.validator.total_stake)

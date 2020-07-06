@@ -38,8 +38,7 @@ export default {
         mode: "index",
         intersect: false,
         callbacks: {
-          title: data =>
-            "Date: " + moment(data[0].xLabel).format("MMM DD, hh:mm"),
+          title: data => "Epoch: " + data[0].xLabel,
           label: data => {
             return (
               (!data.datasetIndex ? "Self delegated: " : "Delegated: ") +
@@ -53,10 +52,7 @@ export default {
       scales: {
         xAxes: [
           {
-            stacked: true,
-            ticks: {
-              callback: value => moment(value).format("MM.DD")
-            }
+            stacked: true
           }
         ],
         yAxes: [
@@ -77,19 +73,22 @@ export default {
         : "No limit"
     },
     chartdata() {
+      const prevEpoch =
+        (this.history && this.history[1] && this.history[1].epoch) - 1
+
       return {
-        labels: this.history.map(
-          v => v.uctDate /* moment(v.uctDate).format("MM.DD") */
-        ),
+        labels: this.history.map(v => (v.epoch ? v.epoch : prevEpoch)),
         datasets: [
           {
             label: "Self delegated",
-            backgroundColor: "hsl(183, 88%, 50%)",
+            lineTension: 0,
+            backgroundColor: "#00ADE8BB",
             data: this.history.map(v => ones(v.self_stake))
           },
           {
             label: "Delegated",
-            backgroundColor: "#dedede",
+            lineTension: 0,
+            backgroundColor: "#00ADE844",
             data: this.history.map(v => ones(v.total_stake - v.self_stake))
           }
         ]
@@ -99,7 +98,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .chart-container {
   border: none;
 }

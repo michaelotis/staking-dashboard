@@ -22,7 +22,11 @@ const processMessage = (store, type, payload) => {
       break
     case "GET_SESSION_RESPONSE":
       if (payload) {
-        store.commit(`setActionInProgress`, true)
+        store.commit(`setExtensionInfo`, payload)
+
+        if (payload.signMessage) {
+          store.commit(`setActionInProgress`, true)
+        }
       }
       break
     case "CLOSE_SESSION_RESPONSE":
@@ -42,7 +46,7 @@ const filterExtensionMessage = callback => message => {
 }
 
 // exported for easyier testing
-export const processLunieExtensionMessages = store =>
+export const processExtensionMessages = store =>
   filterExtensionMessage(data => {
     const message = unWrapMessageFromContentScript(data)
     processMessage(store, message.type, message.payload)
@@ -50,7 +54,7 @@ export const processLunieExtensionMessages = store =>
 
 // listen to incoming events
 export const listenToExtensionMessages = store => {
-  const handler = processLunieExtensionMessages(store)
+  const handler = processExtensionMessages(store)
   window.addEventListener("message", handler)
 }
 
@@ -104,10 +108,7 @@ export const signWithExtension = async (signMessage, senderAddress) => {
     }
   })
 
-  return {
-    signature: Buffer.from(res.signature || "", "hex"),
-    publicKey: Buffer.from(res.publicKey || "", "hex")
-  }
+  return { txHash: res.rawTransaction }
 }
 
 export const waitTransactionConfirm = async () => {

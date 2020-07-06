@@ -1,9 +1,16 @@
 <template>
   <div class="stepItem">
-    <div class="circle--container">
-      <div class="circle--default" :class="{ active, includeLine }">
+    <div class="circle--container" :class="{ active, includeLine }">
+      <!-- <div class="circle--default" :class="{ active, includeLine }">
         {{ number }}
-      </div>
+      </div> -->
+
+      <svgicon
+        :name="title.toLowerCase().replace(/ /g, '_')"
+        width="20"
+        height="20"
+      ></svgicon>
+
       <p class="text--default" :class="{ textActive: active }">
         {{ title }}
       </p>
@@ -35,12 +42,12 @@ export default {
 }
 </script>
 
-<style>
+<style lang="scss">
 .stepItem {
   display: flex;
   flex-direction: row;
   justify-content: center;
-  width: 33%;
+  width: 100%;
   cursor: default;
 }
 
@@ -51,6 +58,10 @@ export default {
   white-space: normal;
   position: relative;
   align-items: center;
+  > svg {
+    transform: scale(2);
+    margin-bottom: var(--unit);
+  }
 }
 
 .circle--default {
@@ -68,8 +79,10 @@ export default {
   z-index: 1;
 }
 
-.active {
-  border: 2px solid var(--tertiary);
+.active,
+.active .svg-icon {
+  color: var(--blue);
+  fill: var(--blue);
 }
 
 .text--default {
@@ -80,20 +93,6 @@ export default {
   letter-spacing: normal;
   text-align: center;
   margin: 0 auto;
-}
-
-.includeLine {
-  position: relative;
-}
-
-.includeLine::after {
-  display: inline-block;
-  content: "";
-  background: var(--grey);
-  width: 39px;
-  height: 2px;
-  position: absolute;
-  left: 36px;
 }
 
 .textActive {

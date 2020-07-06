@@ -18,28 +18,32 @@ import { ones, zeroDecimals } from "../../scripts/num"
 //   return Math.round(Number(min) + Math.random() * (number || 100))
 // }
 
+const isEqualArr = (a, b) =>
+  a.length === b.length && a.every((item, idx) => item === b[idx])
+
 export default {
   name: "SeatAllocationHistory",
   components: { ChartBar },
-  props: ["data", "median", "networkInfo"],
+  props: ["data"],
   data: () => ({
+    elected: [],
+    total: [],
     options: {
       responsive: true,
       plugins: {
-        labels: false,
+        labels: false
       },
-      responsive: true,
       maintainAspectRatio: false,
       tooltips: {
         mode: "index",
         intersect: false,
         custom: function(tooltip) {
-          if (!tooltip) return;
-          tooltip.displayColors = false;
+          if (!tooltip) return
+          tooltip.displayColors = false
         },
         callbacks: {
-          title: (data) => "",
-          label: ({datasetIndex, xLabel, yLabel}) => {
+          title: data => "",
+          label: ({ datasetIndex, xLabel, yLabel }) => {
             if (datasetIndex === 0) {
               return `${yLabel} seats elected out of`
             }
@@ -57,7 +61,7 @@ export default {
             gridLines: {
               display: false
             },
-            stacked: true,
+            stacked: true
           }
         ],
         yAxes: [
@@ -66,30 +70,54 @@ export default {
             gridLines: {
               display: true
             },
+            ticks: {
+              min: 0
+            }
           }
         ]
       }
     }
   }),
+  mounted() {
+    this.calculateChartData()
+  },
+  watch: {
+    data() {
+      this.calculateChartData()
+    }
+  },
+  methods: {
+    calculateChartData() {
+      const shards = this.data || []
+
+      const elected = shards.map(s => s.external)
+      const total = shards.map(s => s.total)
+
+      if (!isEqualArr(this.elected, elected)) {
+        this.elected = elected
+      }
+
+      if (!isEqualArr(this.total, total)) {
+        this.total = total
+      }
+    }
+  },
   computed: {
     chartdata() {
+      const labels = [0, 1, 2, 3].map(s => "Shard " + s)
 
-      console.log(this.data)
-      
-      const epochs = Object.keys(this.data)
-      const elected = this.data.externalShards.map((s) => s.external)
-      const total = this.data.externalShards.map((s) => s.total)
+      const colors = ["#00ADE844", "#00ADE844"]
 
-      const shards = [0, 1, 2, 3].map((s) => 'Shard ' + s)
-      
       return {
-        labels: shards,
+        labels,
         datasets: [
           {
-            data: elected
-          }, 
+            backgroundColor: colors[0],
+            data: this.elected
+          },
           {
-            data: total
+            backgroundColor: colors[1],
+            data: this.total
           }
         ]
       }
@@ -98,7 +126,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .chart-container {
   background: white;
   margin-bottom: var(--double);

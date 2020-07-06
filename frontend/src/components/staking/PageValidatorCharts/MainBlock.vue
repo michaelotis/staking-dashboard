@@ -1,6 +1,5 @@
 <template>
   <div class="validator-main-block">
-    
     <div class="validator">
       <td class="data-table__row__info">
         <ValidatorLogo
@@ -13,44 +12,71 @@
           <h2>{{ validator.moniker }}</h2>
           <div class="validator-amounts">
             <div>
-              <span>Total Staked:</span>
+              <span
+                v-info-style
+                v-tooltip.left="tooltips.v_profile.total_staked"
+                >Total Staked:</span
+              >
               <h4>
-                {{ validator.total_stake | ones | fourDecimals | noBlanks }}
+                {{ validator.total_stake | ones | zeroDecimals | noBlanks }}
               </h4>
             </div>
+
+            <div>
+              <span v-info-style v-tooltip.left="tooltips.v_profile.delegated"
+                >Delegated:</span
+              >
+              <h4>{{ delegatedStake | ones | zeroDecimals | noBlanks }}</h4>
+            </div>
+            <div>
+              <span v-info-style v-tooltip.left="tooltips.v_profile.self_stake"
+                >Self Stake:</span
+              >
+              <h4>
+                {{ validatorSelfStakeAmount | ones | zeroDecimals | noBlanks }}
+              </h4>
+            </div>
+
+            <div>
+              <span
+                v-info-style
+                v-tooltip.left="tooltips.v_profile.max_delegation"
+                >Max Delegation:</span
+              >
+              <h4>
+                {{
+                  validator.max_total_delegation
+                    | ones
+                    | zeroDecimals
+                    | noBlanks
+                }}
+              </h4>
+            </div>
+
             <div class="status-container">
-              <span :class="status | toClassName" class="validator-status">
+              <div :class="status | toClassName" class="validator-status">
                 {{ status }}
-              </span>
-              <span v-if="status_detailed" class="validator-status-detailed">
-                {{ status_detailed }}
-              </span>
+              </div>
+              <div v-if="status_detailed && validator.epos_status" class="validator-status-detailed">
+                {{ validator.epos_status.substring(0, 1).toUpperCase() + validator.epos_status.substring(1) }}
+              </div>
             </div>
-            <!-- <div>
-              <span>Delegated stake:</span>
-              <h4>{{ delegatedStake | ones | fourDecimals | noBlanks }}</h4>
-            </div> -->
-            <!-- <div>
-              <span>Self stake:</span>
-              <h4>
-                {{ validatorSelfStakeAmount | ones | fourDecimals | noBlanks }}
-              </h4>
-            </div>
-            <div v-if="rewards">
-              <span>Your rewards:</span>
-              <h5>+{{ rewards | ones | fourDecimals | noBlanks }}</h5>
-            </div> -->
           </div>
         </div>
       </td>
     </div>
 
     <div class="button-container">
-      <TmBtn id="delegation-btn" value="Stake" @click.native="onDelegation" />
+      <TmBtn
+        id="delegation-btn"
+        value="Delegate"
+        @click.native="onDelegation"
+        :disabled="validator.total_stake >= validator.max_total_delegation"
+      />
       <TmBtn
         id="undelegation-btn"
         :disabled="!selfStakeAmount"
-        value="Unstake"
+        value="Undelegate"
         type="secondary"
         @click.native="onUndelegation"
       />
@@ -63,6 +89,7 @@
       :validator="validator"
       :denom="bondDenom"
       :disabled="validator.remainder === 0"
+      :minAmount="1000 * 1e18"
     />
     <UndelegationModal
       ref="undelegationModal"
@@ -77,13 +104,15 @@
 
 <script>
 import { mapState, mapGetters } from "vuex"
-import { ones, fourDecimals, percent, uatoms } from "scripts/num"
+import { ones, fourDecimals, zeroDecimals, percent, uatoms } from "scripts/num"
 import { formatBech32 } from "src/filters"
 import TmBtn from "common/TmBtn"
 import DelegationModal from "src/ActionModal/components/DelegationModal"
 import UndelegationModal from "src/ActionModal/components/UndelegationModal"
 import ValidatorLogo from "../components/ValidatorLogo"
 import isEmpty from "lodash.isempty"
+import tooltips from "src/components/tooltips"
+import BigNumber from "bignumber.js"
 
 export default {
   name: `main-block`,
@@ -96,6 +125,7 @@ export default {
   filters: {
     ones,
     fourDecimals,
+    zeroDecimals,
     percent,
     toLower: text => text.toLowerCase(),
     toClassName: text => text.toLowerCase().replace(/ /g, "_"),
@@ -155,15 +185,20 @@ export default {
       return this.validator.self_stake
     },
     delegatedStake() {
-      return this.validator.total_stake - this.validatorSelfStakeAmount
+      return BigNumber(this.validator.total_stake)
+        .minus(this.validatorSelfStakeAmount)
+        .toNumber()
     },
     rewards() {
       return this.selfStake ? this.selfStake.reward : 0
     }
   },
+  data: () => ({ tooltips }),
   methods: {
     percent,
     onDelegation(options) {
+      window.ga('send', 'pageview', '/delegate')
+      window.ga('send', 'event', 'delegate', 'open', 'modal')
       this.$refs.delegationModal.open(options)
     },
     onUndelegation() {
@@ -217,11 +252,19 @@ export default {
 <style scoped lang="scss">
 @import "./styles.css";
 
-.status-container {
-  margin-top: var(--unit);
+.validator-main-block {
+  max-width: 380px;
 }
 
-.validator, .button-container {
+.status-container {
+  margin-top: var(--unit);
+  > div:first-child {
+    min-width: 100px;
+  }
+}
+
+.validator,
+.button-container {
   padding: var(--unit) 0;
   padding-bottom: 0;
 }
@@ -277,20 +320,4 @@ export default {
 .validator-main-block .validator-amounts > div span {
   margin-right: 5px;
 }
-
-
-
-
-@media screen and (max-width: 411px) {
-    
-  .status-container {
-    span {
-      display: block;
-      width: 100%;
-    }
-  }
-
-}
-
-
 </style>
